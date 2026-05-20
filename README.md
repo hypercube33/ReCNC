@@ -30,6 +30,18 @@ The repo is organized as a source workspace, not as a minimal distributable pack
 - generated build output is intentionally not committed
 - release artifacts should be attached to GitHub Releases instead of stored in git
 
+## Start Here
+
+If you are opening this repo cold, read these in order:
+
+- `README.md`
+- `docs/PROVENANCE.md`
+- `Todo.md`
+- `OpenBugs.md`
+- `changelog.md`
+
+For release publishing, use `docs/RELEASE_TEMPLATE.md`.
+
 ## Requirements
 
 For the current workspace state, Windows packaging expects:
@@ -99,6 +111,19 @@ At minimum:
 - preserve upstream license files already present in imported trees
 - avoid claiming this is a clean original codebase
 - document what is vendored, what is modified, and what is reference-only
+
+The current audit lives in `docs/PROVENANCE.md`.
+
+## Public Repo Posture
+
+Current recommendation: keep the GitHub repo private until the provenance review is complete.
+
+Reason:
+
+- `OpenRA-source/` is straightforward, but this repo is not only OpenRA
+- the EA reference trees carry their own license files and additional terms
+- `CnC_Remastered_Collection/` should be described carefully because the released scope is narrower than the folder name suggests
+- `RulesFiles/` still needs an explicit origin and redistribution note
 
 ## Current Status
 
