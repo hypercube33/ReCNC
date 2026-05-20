@@ -28,6 +28,23 @@ namespace OpenRA.Mods.Common.Server
 			return server.Type == ServerType.Skirmish || server.Type == ServerType.Local;
 		}
 
+		static bool UsesPersistentLobbyState(S server)
+		{
+			return UsesSkirmishPersistence(server) || server.Type == ServerType.Multiplayer;
+		}
+
+		static string PersistentLobbyFile(S server)
+		{
+			var prefix = server.Type == ServerType.Multiplayer ? "multiplayer" : "skirmish";
+			return Path.Combine(Platform.SupportDir, $"{prefix}.{server.ModData.Manifest.Id}.yaml");
+		}
+
+		static bool ShouldInitializePersistentLobby(S server, Connection conn)
+		{
+			var client = server.GetClient(conn);
+			return client != null && client.IsAdmin && server.LobbyInfo.NonBotClients.Count() == 1;
+		}
+
 		class SkirmishSlot
 		{
 			[FieldLoader.Serialize(FromYamlKey = true)]
@@ -98,6 +115,10 @@ namespace OpenRA.Mods.Common.Server
 				}
 			}
 
+			var allowSpectatorsNode = nodes.NodeWithKeyOrDefault("AllowSpectators");
+			if (allowSpectatorsNode != null && bool.TryParse(allowSpectatorsNode.Value.Value, out var allowSpectators))
+				server.LobbyInfo.GlobalSettings.AllowSpectators = allowSpectators;
+
 			var selectableFactions = server.Map.WorldActorInfo.TraitInfos<FactionInfo>()
 				.Where(f => f.Selectable)
 				.Select(f => f.InternalName)
@@ -152,14 +173,19 @@ namespace OpenRA.Mods.Common.Server
 
 		void INotifySyncLobbyInfo.LobbyInfoSynced(S server)
 		{
-			if (!UsesSkirmishPersistence(server))
+			if (!UsesPersistentLobbyState(server))
 				return;
 
-			var path = Path.Combine(Platform.SupportDir, $"skirmish.{server.ModData.Manifest.Id}.yaml");
-			var playerClient = server.LobbyInfo.NonBotClients.First();
+			var path = PersistentLobbyFile(server);
+			var playerClient = server.LobbyInfo.NonBotClients.FirstOrDefault(c => c.IsAdmin)
+				?? server.LobbyInfo.NonBotClients.FirstOrDefault();
+			if (playerClient == null)
+				return;
+
 			new List<MiniYamlNode>
 			{
 				new("Map", server.LobbyInfo.GlobalSettings.Map),
+				new("AllowSpectators", server.LobbyInfo.GlobalSettings.AllowSpectators.ToString()),
 				new("Options", new MiniYaml("", server.LobbyInfo.GlobalSettings.LobbyOptions
 					.Select(kv => new MiniYamlNode(kv.Key, kv.Value.Value)))),
 				new("Player", FieldSaver.Save(new SkirmishSlot(playerClient))),
@@ -170,11 +196,11 @@ namespace OpenRA.Mods.Common.Server
 
 		void IClientJoined.ClientJoined(S server, Connection conn)
 		{
-			if (!UsesSkirmishPersistence(server))
+			if (!UsesPersistentLobbyState(server) || !ShouldInitializePersistentLobby(server, conn))
 				return;
 
-			var skirmishFile = Path.Combine(Platform.SupportDir, $"skirmish.{server.ModData.Manifest.Id}.yaml");
-			if (TryInitializeFromFile(server, skirmishFile, conn))
+			var persistentLobbyFile = PersistentLobbyFile(server);
+			if (TryInitializeFromFile(server, persistentLobbyFile, conn))
 				return;
 
 			var slot = server.LobbyInfo.FirstEmptyBotSlot();

@@ -32,6 +32,14 @@ All notable changes to this repository (outside vendored `OpenRA-source\` unless
   not an unspecified hotkey).
 
 ### Changed
+ 
+- **2026-05-19** - **Lobby persistence widened beyond stock skirmish-only behavior.** Gameplay code in
+  [OpenRA-source/OpenRA.Mods.Common/ServerTraits/SkirmishLogic.cs](OpenRA-source/OpenRA.Mods.Common/ServerTraits/SkirmishLogic.cs)
+  now treats `ServerType.Local` as skirmish-style persistence, writes a separate
+  `multiplayer.<modId>.yaml` for hosted multiplayer lobbies, restores that state only when the
+  first admin host joins a fresh lobby, and persists `AllowSpectators` alongside map / options /
+  host slot / bots. This should reduce the repeated "set everything again" churn for local and
+  host-created sessions without stomping later joining multiplayer clients.
 
 - **2026-05-08** — **CnC helipad parking, RTB stickiness, resupply repair, Chinook idle.** Gameplay code ([OpenRA-source/OpenRA.Mods.Common](OpenRA-source/OpenRA.Mods.Common)): **`ProvidesAircraftParkingPrerequisite`** now counts **queued** ORCA/HELI across **`Aircraft.GDI` / `Aircraft.Nod`** production queues toward slot use (same **`cnc-air-parking-available`** prereq), so total **alive + queued** cannot exceed helipad count — avoids mass-queue then wholesale cancel when cap hits. **`Aircraft`**: **`PreferredResupplier`** set whenever the unit **reserves** a helipad (persists after takeoff); **`ReturnToBase`** / **`ChooseResupplier`** prefer that pad, return **null** when it is busy so RTB **waits near that pad** instead of stealing another. **`GroundResupplyProximity`** (~3 cells): **`Resupply`** no longer uses **`WDist.Zero`**, so landed craft count as “close enough” for **repair + rearm** together. Rules: **`TRAN`** (**Chinook**) **`IdleBehavior: Land`** so idle combat transports settle instead of **`ReturnToBase`** to a pad. Files: `Traits/Player/ProvidesAircraftParkingPrerequisite.cs`, `Traits/Air/Aircraft.cs`, `Activities/Air/ReturnToBase.cs`; YAML `mods/cnc/rules/aircraft.yaml` (+ **build** mirror).
 
@@ -627,4 +635,3 @@ Merged from the retired `changes.md` tracker on **2026-05-08** so `changelog.md`
 
 - Use reverse-chronological sections under `[Unreleased]` or version/date headings.
 - Each bullet: what changed, where (paths), and rollback hint if non-obvious.
-
