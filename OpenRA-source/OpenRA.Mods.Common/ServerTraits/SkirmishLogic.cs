@@ -22,6 +22,12 @@ namespace OpenRA.Mods.Common.Server
 {
 	public class SkirmishLogic : ServerTrait, IClientJoined, INotifySyncLobbyInfo
 	{
+		// Some single-machine lobby flows use ServerType.Local even though they behave like skirmish.
+		static bool UsesSkirmishPersistence(S server)
+		{
+			return server.Type == ServerType.Skirmish || server.Type == ServerType.Local;
+		}
+
 		class SkirmishSlot
 		{
 			[FieldLoader.Serialize(FromYamlKey = true)]
@@ -146,7 +152,7 @@ namespace OpenRA.Mods.Common.Server
 
 		void INotifySyncLobbyInfo.LobbyInfoSynced(S server)
 		{
-			if (server.Type != ServerType.Skirmish)
+			if (!UsesSkirmishPersistence(server))
 				return;
 
 			var path = Path.Combine(Platform.SupportDir, $"skirmish.{server.ModData.Manifest.Id}.yaml");
@@ -164,7 +170,7 @@ namespace OpenRA.Mods.Common.Server
 
 		void IClientJoined.ClientJoined(S server, Connection conn)
 		{
-			if (server.Type != ServerType.Skirmish)
+			if (!UsesSkirmishPersistence(server))
 				return;
 
 			var skirmishFile = Path.Combine(Platform.SupportDir, $"skirmish.{server.ModData.Manifest.Id}.yaml");
