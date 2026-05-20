@@ -1,0 +1,24 @@
+.cursor/
+
+# Root-level build artifacts and logs
+/build/
+/build-logs/
+/test-release/
+/*.log
+/debug*.log
+
+# Release bundles and installer outputs
+/ReCnC-release-*.zip
+/ReCnC-release-*.exe
+
+# Local tooling artifacts
+/rcedit-x64.exe
+
+# Common .NET build output anywhere in the tree
+**/bin/
+**/obj/
+
+# Nested repository metadata from imported upstream trees
+CnC_Red_Alert/.git/
+CnC_Remastered_Collection/.git/
+CnC_Tiberian_Dawn/.git/

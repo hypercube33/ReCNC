@@ -1,0 +1,31 @@
+﻿diff --git "a/patches\\PERF-046-backup\\Directory.Build.props" "b/OpenRA-source\\Directory.Build.props"
+index 06d2634..bf72d4e 100644
+--- "a/patches\\PERF-046-backup\\Directory.Build.props"
++++ "b/OpenRA-source\\Directory.Build.props"
+@@ -17,10 +17,11 @@
+     <Copyright>Copyright (c) The OpenRA Developers and Contributors</Copyright>
+   </PropertyGroup>
+ 
++  <!-- BEGIN ReCnC PERF-046 (.NET 10 runtime port; drop Mono conditionals) -->
+   <PropertyGroup>
+-    <TargetFramework Condition="'$(MSBuildRuntimeType)'!='Mono'">net6.0</TargetFramework>
+-    <TargetFramework Condition="'$(MSBuildRuntimeType)'=='Mono'">netstandard2.1</TargetFramework>
++    <TargetFramework>net10.0</TargetFramework>
+   </PropertyGroup>
++  <!-- END ReCnC PERF-046 -->
+ 
+   <PropertyGroup>
+     <TargetPlatform Condition="$([MSBuild]::IsOsPlatform('Windows'))">win-x64</TargetPlatform>
+@@ -54,8 +55,9 @@
+   <!-- StyleCop/Roslynator -->
+   <ItemGroup>
+     <PackageReference Include="StyleCop.Analyzers" Version="1.2.0-beta.435" PrivateAssets="All" />
+-    <!-- Roslynator analyzers fail to run under Mono (AD0001) -->
+-    <PackageReference Include="Roslynator.Analyzers" Version="4.2.0" PrivateAssets="All" Condition="'$(MSBuildRuntimeType)'!='Mono'" />
+-    <PackageReference Include="Roslynator.Formatting.Analyzers" Version="4.2.0" PrivateAssets="All" Condition="'$(MSBuildRuntimeType)'!='Mono'" />
++    <!-- BEGIN ReCnC PERF-046 (drop Mono AD0001 conditions; Mono no longer targeted) -->
++    <PackageReference Include="Roslynator.Analyzers" Version="4.2.0" PrivateAssets="All" />
++    <PackageReference Include="Roslynator.Formatting.Analyzers" Version="4.2.0" PrivateAssets="All" />
++    <!-- END ReCnC PERF-046 -->
+   </ItemGroup>
+ </Project>

@@ -1,0 +1,15 @@
+﻿diff --git "a/patches\\PERF-046-backup\\OpenRA.Mods.Common.csproj" "b/OpenRA-source\\OpenRA.Mods.Common\\OpenRA.Mods.Common.csproj"
+index 2c0bfe2..32ef065 100644
+--- "a/patches\\PERF-046-backup\\OpenRA.Mods.Common.csproj"
++++ "b/OpenRA-source\\OpenRA.Mods.Common\\OpenRA.Mods.Common.csproj"
+@@ -4,7 +4,9 @@
+       <Private>False</Private>
+     </ProjectReference>
+     <PackageReference Include="NuGet.CommandLine" Version="6.12.1" />
+-    <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
++    <!-- BEGIN ReCnC PERF-046 (NU1510: Microsoft.Win32.Registry is in-box on net10) -->
++    <!-- <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" /> -->
++    <!-- END ReCnC PERF-046 -->
+     <PackageReference Include="OpenRA-FuzzyLogicLibrary" Version="1.0.1" />
+     <PackageReference Include="DiscordRichPresence" Version="1.2.1.24" />
+     <PackageReference Include="MP3Sharp" Version="1.0.5" />

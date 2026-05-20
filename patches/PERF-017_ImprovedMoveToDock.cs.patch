@@ -1,0 +1,84 @@
+﻿diff --git "a/patches\\PERF-017-backup\\OpenRA.Mods.Common\\Activities\\ImprovedMoveToDock.cs" "b/OpenRA-source\\OpenRA.Mods.Common\\Activities\\ImprovedMoveToDock.cs"
+index 7862324..37bccf5 100644
+--- "a/patches\\PERF-017-backup\\OpenRA.Mods.Common\\Activities\\ImprovedMoveToDock.cs"
++++ "b/OpenRA-source\\OpenRA.Mods.Common\\Activities\\ImprovedMoveToDock.cs"
+@@ -39,6 +39,18 @@ namespace OpenRA.Mods.Common.Activities
+ 		int ticksSinceLastEvaluation;
+ 		bool hasRegisteredQueue;
+ 
++		// BEGIN ReCnC PERF-017
++		// Per-tick cache of the candidate alternate docks. Previously GetAlternativeDocks
++		// returned a fresh Where-filtered IEnumerable on every call, and .Any() re-enumerated
++		// it each time. When a harvester is stuck on ReserveHost failure (line 165 hot path)
++		// this fired on every tick of the hold, each time scanning the full world's IDockHost
++		// actors. The cache key is (WorldTick, dockHost) so mid-tick dockHost reassignment
++		// after a successful re-evaluation still produces a fresh scan.
++		readonly List<TraitPair<IDockHost>> cachedAlternates = new();
++		int cachedAlternatesTick = -1;
++		IDockHost cachedAlternatesHost;
++		// END ReCnC PERF-017
++
+ 		public ImprovedMoveToDock(
+ 			Actor self,
+ 			Actor dockHostActor = null,
+@@ -116,7 +128,9 @@ namespace OpenRA.Mods.Common.Activities
+ 				ticksSinceLastEvaluation = 0;
+ 				var alternates = GetAlternativeDocks(self);
+ 
+-				if (alternates.Any() && !smartDocking.ShouldWaitAtCurrentDock(self, dockHost, alternates))
++				// BEGIN ReCnC PERF-017
++				if (alternates.Count > 0 && !smartDocking.ShouldWaitAtCurrentDock(self, dockHost, alternates))
++				// END ReCnC PERF-017
+ 				{
+ 					var best = smartDocking.FindBestDock(self, alternates, dockClient);
+ 					if (best != null && best.RecommendedDock.Trait != dockHost)
+@@ -163,7 +177,9 @@ namespace OpenRA.Mods.Common.Activities
+ 				if (smartDocking != null)
+ 				{
+ 					var alternates = GetAlternativeDocks(self);
+-					if (alternates.Any())
++					// BEGIN ReCnC PERF-017
++					if (alternates.Count > 0)
++					// END ReCnC PERF-017
+ 					{
+ 						var best = smartDocking.FindBestDock(self, alternates, dockClient);
+ 						if (best != null && !best.ShouldWait)
+@@ -196,14 +212,33 @@ namespace OpenRA.Mods.Common.Activities
+ 			return dockClient.ClosestDock(null, default, forceEnter, ignoreOccupancy);
+ 		}
+ 
+-		IEnumerable<TraitPair<IDockHost>> GetAlternativeDocks(Actor self)
++		// BEGIN ReCnC PERF-017
++		// Materialize the alternate-docks shortlist into a pooled List<> and cache it
++		// for the remainder of the current WorldTick (keyed on dockHost so a successful
++		// mid-tick re-evaluation that reassigns dockHost triggers a fresh scan on the
++		// fallback path below). Eliminates the Where-iterator allocation and the .Any()
++		// double-enumeration that previously fired on every tick during a ReserveHost
++		// hold-pattern.
++		List<TraitPair<IDockHost>> GetAlternativeDocks(Actor self)
+ 		{
+-			return self.World.ActorsWithTrait<IDockHost>()
+-				.Where(h =>
+-					h.Trait != dockHost &&
++			var currentTick = self.World.WorldTick;
++			if (cachedAlternatesTick == currentTick && cachedAlternatesHost == dockHost)
++				return cachedAlternates;
++
++			cachedAlternates.Clear();
++			foreach (var h in self.World.ActorsWithTrait<IDockHost>())
++			{
++				if (h.Trait != dockHost &&
+ 					h.Trait.IsEnabledAndInWorld &&
+-					dockClient.CanDockAt(h.Actor, h.Trait, forceEnter, ignoreOccupancy));
++					dockClient.CanDockAt(h.Actor, h.Trait, forceEnter, ignoreOccupancy))
++					cachedAlternates.Add(h);
++			}
++
++			cachedAlternatesTick = currentTick;
++			cachedAlternatesHost = dockHost;
++			return cachedAlternates;
+ 		}
++		// END ReCnC PERF-017
+ 
+ 		int GetPriority(Actor self)
+ 		{

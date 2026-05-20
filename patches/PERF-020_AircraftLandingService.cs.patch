@@ -1,0 +1,40 @@
+diff --git "a/patches\\PERF-020-backup\\OpenRA.Mods.Common\\Traits\\World\\AircraftLandingService.cs" "b/OpenRA-source\\OpenRA.Mods.Common\\Traits\\World\\AircraftLandingService.cs"
+index a7a4ec3..d837ff8 100644
+--- "a/patches\\PERF-020-backup\\OpenRA.Mods.Common\\Traits\\World\\AircraftLandingService.cs"
++++ "b/OpenRA-source\\OpenRA.Mods.Common\\Traits\\World\\AircraftLandingService.cs"
+@@ -33,6 +33,15 @@ namespace OpenRA.Mods.Common.Traits
+ 		readonly World world;
+ 		AircraftLandingManager landingManager;
+ 
++		// BEGIN ReCnC PERF-020
++		// Cache the active IAircraftLanding so hot callers (IsLandingZoneClear /
++		// IsLandingZoneAvailableFor / FindAlternateLandingZone) skip the
++		// CurrentAlgorithm string-compare + branch dispatch inside the manager on
++		// every call. Invalidated when the algorithm selection changes.
++		IAircraftLanding cachedStrategy;
++		AircraftLandingAlgorithm cachedAlgorithm;
++		// END ReCnC PERF-020
++
+ 		public AircraftLandingService(Actor self)
+ 		{
+ 			world = self.World;
+@@ -53,7 +62,18 @@ namespace OpenRA.Mods.Common.Traits
+ 		/// </summary>
+ 		public IAircraftLanding GetStrategy()
+ 		{
+-			return landingManager?.GetStrategy() ?? new OpenRAAircraftLanding(world);
++			// BEGIN ReCnC PERF-020
++			if (landingManager == null)
++				return cachedStrategy ??= new OpenRAAircraftLanding(world);
++
++			var current = landingManager.CurrentAlgorithm;
++			if (cachedStrategy != null && current == cachedAlgorithm)
++				return cachedStrategy;
++
++			cachedStrategy = landingManager.GetStrategy();
++			cachedAlgorithm = current;
++			return cachedStrategy;
++			// END ReCnC PERF-020
+ 		}
+ 
+ 		/// <summary>

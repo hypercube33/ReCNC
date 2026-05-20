@@ -1,0 +1,29 @@
+diff --git "a/patches\\PERF-055-backup\\OpenRA.Game\\Map\\ActorReference.cs" "b/OpenRA-source\\OpenRA.Game\\Map\\ActorReference.cs"
+index e42483b..c02924a 100644
+--- "a/patches\\PERF-055-backup\\OpenRA.Game\\Map\\ActorReference.cs"
++++ "b/OpenRA-source\\OpenRA.Game\\Map\\ActorReference.cs"
+@@ -14,7 +14,12 @@ using System.Collections;
+ using System.Collections.Generic;
+ using System.IO;
+ using System.Linq;
+-using System.Runtime.Serialization;
++// BEGIN ReCnC PERF-055
++// Switch from the obsolete System.Runtime.Serialization.FormatterServices
++// (SYSLIB0050 on net10) to System.Runtime.CompilerServices.RuntimeHelpers,
++// which is a drop-in replacement available since .NET Core 3.0.
++using System.Runtime.CompilerServices;
++// END ReCnC PERF-055
+ using OpenRA.Primitives;
+ using OpenRA.Traits;
+ 
+@@ -70,7 +75,9 @@ namespace OpenRA
+ 			if (type == null)
+ 				throw new InvalidDataException($"Unknown initializer type '{initInstance[0]}Init'");
+ 
+-			var init = (ActorInit)FormatterServices.GetUninitializedObject(type);
++			// BEGIN ReCnC PERF-055
++			var init = (ActorInit)RuntimeHelpers.GetUninitializedObject(type);
++			// END ReCnC PERF-055
+ 			if (initInstance.Length > 1)
+ 				type.GetField(nameof(ActorInit.InstanceName)).SetValue(init, initInstance[1]);
+ 

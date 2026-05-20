@@ -1,0 +1,34 @@
+ReCnC — project workflow outline
+================================
+
+Purpose
+-------
+Track high-level workflow for this workspace. ReCnC currently centers on OpenRA
+engine source under OpenRA-source\ (RTS modding / classic C&C-style work).
+
+Workflow (recommended)
+----------------------
+1. Plan work in Todo.md (goals, order, owners if any).
+2. Prefer minimal engine edits: isolate custom rules in a mod or thin patches
+   when possible so upstream merges stay feasible.
+3. Build and test per OpenRA-source\INSTALL.md and wiki "Compiling".
+4. Record notable changes in changelog.md with date and short rollback notes.
+5. Optional: wrap repetitive build steps in PowerShell 5.1 scripts at repo root
+   if desired; keep scripts self-contained where practical.
+
+Data and tooling (house conventions)
+------------------------------------
+- Primary scripting: PowerShell 5.1; favor scripts without heavy external deps.
+- Secondary SQL: assume SCCM context when relevant.
+- App data: CSV or XML when this repo adds tooling that persists data.
+- Logs: CMTrace (SCCM) format for project-specific tooling and automation.
+
+GUI
+---
+- WinForms for any new standalone Windows tooling in this repo (not inside
+  OpenRA’s own UI stack).
+
+Notes
+-----
+- OpenRA uses YAML, packages, and its own UI; conventions above apply to
+  ReCnC-side tools and processes, not to replacing OpenRA internals.

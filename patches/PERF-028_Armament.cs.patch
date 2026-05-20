@@ -1,0 +1,50 @@
+﻿diff --git "a/patches\\PERF-028-backup\\OpenRA.Mods.Common\\Traits\\Armament.cs" "b/OpenRA-source\\OpenRA.Mods.Common\\Traits\\Armament.cs"
+index 99c6dd9..255871b 100644
+--- "a/patches\\PERF-028-backup\\OpenRA.Mods.Common\\Traits\\Armament.cs"
++++ "b/OpenRA-source\\OpenRA.Mods.Common\\Traits\\Armament.cs"
+@@ -133,6 +133,14 @@ namespace OpenRA.Mods.Common.Traits
+ 
+ 		readonly List<(int Ticks, int Burst, Action<int> Func)> delayedActions = new();
+ 
++		// BEGIN ReCnC PERF-028
++		// Hoist the expired-action predicate to a static field so the per-tick
++		// RemoveAll no longer allocates a fresh Predicate<> delegate. Combined
++		// with the Count>0 guard in Tick, an Armament with no delayed bursts
++		// now runs zero allocations through this path.
++		static readonly Predicate<(int Ticks, int Burst, Action<int> Func)> ExpiredDelayedAction = a => a.Ticks <= 0;
++		// END ReCnC PERF-028
++
+ 		public WDist Recoil;
+ 		public int FireDelay { get; protected set; }
+ 		public int Burst { get; protected set; }
+@@ -223,15 +231,23 @@ namespace OpenRA.Mods.Common.Traits
+ 
+ 			Recoil = new WDist(Math.Max(0, Recoil.Length - Info.RecoilRecovery.Length));
+ 
+-			for (var i = 0; i < delayedActions.Count; i++)
++			// BEGIN ReCnC PERF-028
++			// Skip the loop and RemoveAll entirely on the common no-pending-actions
++			// tick. Using the hoisted static predicate avoids a per-tick Predicate<>
++			// delegate allocation when delayedActions is non-empty.
++			if (delayedActions.Count > 0)
+ 			{
+-				var x = delayedActions[i];
+-				if (--x.Ticks <= 0)
+-					x.Func(x.Burst);
+-				delayedActions[i] = x;
+-			}
++				for (var i = 0; i < delayedActions.Count; i++)
++				{
++					var x = delayedActions[i];
++					if (--x.Ticks <= 0)
++						x.Func(x.Burst);
++					delayedActions[i] = x;
++				}
+ 
+-			delayedActions.RemoveAll(a => a.Ticks <= 0);
++				delayedActions.RemoveAll(ExpiredDelayedAction);
++			}
++			// END ReCnC PERF-028
+ 		}
+ 
+ 		void ITick.Tick(Actor self)

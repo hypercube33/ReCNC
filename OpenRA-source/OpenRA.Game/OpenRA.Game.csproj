@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>OpenRA</RootNamespace>
+  </PropertyGroup>
+  <!-- BEGIN ReCnC PERF-046 (.NET 10: drop Mono conditionals; drop packages now in-box;
+       bump DependencyModel to 10.x matching TFM) -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyModel" Version="10.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Linguini.Bundle" Version="0.8.1" />
+    <PackageReference Include="OpenRA-Eluant" Version="1.0.22" />
+    <PackageReference Include="Mono.NAT" Version="3.0.4" />
+    <PackageReference Include="SharpZipLib" Version="1.4.2" />
+  </ItemGroup>
+  <!-- END ReCnC PERF-046 -->
+</Project>

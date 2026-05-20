@@ -1,0 +1,56 @@
+diff --git "a/patches\\PERF-011-backup\\OpenRA.Mods.Common\\Pathfinder\\PathfindingStrategyManager.cs" "b/OpenRA-source\\OpenRA.Mods.Common\\Pathfinder\\PathfindingStrategyManager.cs"
+index 0bcd744..e800f14 100644
+--- "a/patches\\PERF-011-backup\\OpenRA.Mods.Common\\Pathfinder\\PathfindingStrategyManager.cs"
++++ "b/OpenRA-source\\OpenRA.Mods.Common\\Pathfinder\\PathfindingStrategyManager.cs"
+@@ -28,6 +28,13 @@ namespace OpenRA.Mods.Common.Pathfinder
+ 
+ 		string lobbyAlgorithm;
+ 
++		// BEGIN ReCnC PERF-011
++		// Cache the resolved algorithm enum so CurrentAlgorithm does not re-parse
++		// the settings string (two case-insensitive StringComparisons) on every
++		// GetStrategy call. Invalidated by ClearCache / SetAlgorithmFromLobby.
++		PathfindingAlgorithm? cachedAlgorithm;
++		// END ReCnC PERF-011
++
+ 		/// <summary>
+ 		/// Creates a new pathfinding strategy manager for the given world.
+ 		/// </summary>
+@@ -53,12 +60,22 @@ namespace OpenRA.Mods.Common.Pathfinder
+ 		{
+ 			get
+ 			{
++				// BEGIN ReCnC PERF-011
++				if (cachedAlgorithm.HasValue)
++					return cachedAlgorithm.Value;
++
+ 				var setting = lobbyAlgorithm ?? Game.Settings.Game.PathfindingAlgorithm;
++				PathfindingAlgorithm resolved;
+ 				if (setting?.Equals("ClassicCnC", StringComparison.OrdinalIgnoreCase) == true)
+-					return PathfindingAlgorithm.ClassicCnC;
+-				if (setting?.Equals("Improved", StringComparison.OrdinalIgnoreCase) == true)
+-					return PathfindingAlgorithm.Improved;
+-				return PathfindingAlgorithm.OpenRA;
++					resolved = PathfindingAlgorithm.ClassicCnC;
++				else if (setting?.Equals("Improved", StringComparison.OrdinalIgnoreCase) == true)
++					resolved = PathfindingAlgorithm.Improved;
++				else
++					resolved = PathfindingAlgorithm.OpenRA;
++
++				cachedAlgorithm = resolved;
++				return resolved;
++				// END ReCnC PERF-011
+ 			}
+ 		}
+ 
+@@ -129,6 +146,10 @@ namespace OpenRA.Mods.Common.Pathfinder
+ 			openRAStrategies.Clear();
+ 			classicStrategies.Clear();
+ 			improvedStrategies.Clear();
++
++			// BEGIN ReCnC PERF-011
++			cachedAlgorithm = null;
++			// END ReCnC PERF-011
+ 		}
+ 	}
+ }

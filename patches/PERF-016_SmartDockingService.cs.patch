@@ -1,0 +1,148 @@
+diff --git "a/patches\\PERF-016-backup\\OpenRA.Mods.Common\\Traits\\SmartDockingService.cs" "b/OpenRA-source\\OpenRA.Mods.Common\\Traits\\SmartDockingService.cs"
+index b5b3bd5..0fbd56d 100644
+--- "a/patches\\PERF-016-backup\\OpenRA.Mods.Common\\Traits\\SmartDockingService.cs"
++++ "b/OpenRA-source\\OpenRA.Mods.Common\\Traits\\SmartDockingService.cs"
+@@ -90,7 +90,18 @@ namespace OpenRA.Mods.Common.Traits
+ 
+ 			var mobile = client.TraitOrDefault<Mobile>();
+ 			var clientPos = client.CenterPosition;
+-			var candidates = new List<DockCandidate>();
++
++			// BEGIN ReCnC PERF-015
++			// Replace OrderBy().ToList() + list allocation with a single-pass scan
++			// tracking best + runner-up. Avoids List<DockCandidate> allocation and
++			// the O(n log n) sort cost on every dock selection.
++			var lastDockForClient = lastUsedDock.TryGetValue(client, out var lastDock) ? lastDock : null;
++
++			var bestValid = false;
++			var secondValid = false;
++			var candidateCount = 0;
++			var best = default(DockCandidate);
++			var second = default(DockCandidate);
+ 
+ 			foreach (var dock in availableDocks)
+ 			{
+@@ -101,11 +112,9 @@ namespace OpenRA.Mods.Common.Traits
+ 				var waitTime = EstimateWaitTime(dock.Trait);
+ 				var totalTime = travelTime + waitTime;
+ 
+-				var familiarityBonus = 0;
+-				if (lastUsedDock.TryGetValue(client, out var lastDock) && lastDock == dock.Trait)
+-					familiarityBonus = Info.FamiliarityBonus;
++				var familiarityBonus = lastDockForClient == dock.Trait ? Info.FamiliarityBonus : 0;
+ 
+-				candidates.Add(new DockCandidate
++				var candidate = new DockCandidate
+ 				{
+ 					Dock = dock,
+ 					TravelTime = travelTime,
+@@ -113,28 +122,43 @@ namespace OpenRA.Mods.Common.Traits
+ 					TotalTime = totalTime,
+ 					FamiliarityBonus = familiarityBonus,
+ 					Score = totalTime - familiarityBonus
+-				});
++				};
++
++				candidateCount++;
++
++				if (!bestValid || candidate.Score < best.Score)
++				{
++					if (bestValid)
++					{
++						second = best;
++						secondValid = true;
++					}
++
++					best = candidate;
++					bestValid = true;
++				}
++				else if (!secondValid || candidate.Score < second.Score)
++				{
++					second = candidate;
++					secondValid = true;
++				}
+ 			}
+ 
+-			if (candidates.Count == 0)
++			if (!bestValid)
+ 				return null;
+ 
+-			candidates = candidates.OrderBy(c => c.Score).ToList();
+-			var best = candidates[0];
+-
+ 			var decision = new DockDecision
+ 			{
+ 				RecommendedDock = best.Dock,
+ 				TravelTime = best.TravelTime,
+ 				WaitTime = best.WaitTime,
+ 				TotalTime = best.TotalTime,
+-				AlternativeCount = candidates.Count - 1,
++				AlternativeCount = candidateCount - 1,
+ 				ShouldWait = true
+ 			};
+ 
+-			if (candidates.Count > 1)
++			if (secondValid)
+ 			{
+-				var second = candidates[1];
+ 				decision.AlternativeDock = second.Dock;
+ 				decision.AlternativeTotalTime = second.TotalTime;
+ 
+@@ -143,6 +167,7 @@ namespace OpenRA.Mods.Common.Traits
+ 			}
+ 
+ 			return decision;
++			// END ReCnC PERF-015
+ 		}
+ 
+ 		/// <summary>
+@@ -257,18 +282,44 @@ namespace OpenRA.Mods.Common.Traits
+ 				dockQueues[dock] = queue;
+ 			}
+ 
+-			if (!queue.Any(e => e.Client == client))
++			// BEGIN ReCnC PERF-016
++			// Maintain the queue in sorted order (priority desc, arrival asc) via
++			// insertion sort on enqueue. Replaces the previous
++			// OrderByDescending().ThenBy().ToList() allocation on every enqueue.
++			var alreadyQueued = false;
++			for (var i = 0; i < queue.Count; i++)
+ 			{
+-				queue.Add(new DockQueueEntry
++				if (queue[i].Client == client)
++				{
++					alreadyQueued = true;
++					break;
++				}
++			}
++
++			if (!alreadyQueued)
++			{
++				var entry = new DockQueueEntry
+ 				{
+ 					Client = client,
+ 					ArrivalTick = world.WorldTick,
+ 					Priority = priority
+-				});
++				};
+ 
+-				queue = queue.OrderByDescending(e => e.Priority).ThenBy(e => e.ArrivalTick).ToList();
+-				dockQueues[dock] = queue;
++				var insertAt = queue.Count;
++				for (var i = 0; i < queue.Count; i++)
++				{
++					var cur = queue[i];
++					if (entry.Priority > cur.Priority
++						|| (entry.Priority == cur.Priority && entry.ArrivalTick < cur.ArrivalTick))
++					{
++						insertAt = i;
++						break;
++					}
++				}
++
++				queue.Insert(insertAt, entry);
+ 			}
++			// END ReCnC PERF-016
+ 		}
+ 
+ 		/// <summary>

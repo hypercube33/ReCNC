@@ -1,0 +1,28 @@
+﻿diff --git "a/patches\\PERF-046-backup\\OpenRA.Game.csproj" "b/OpenRA-source\\OpenRA.Game\\OpenRA.Game.csproj"
+index 1f9a808..16c3d19 100644
+--- "a/patches\\PERF-046-backup\\OpenRA.Game.csproj"
++++ "b/OpenRA-source\\OpenRA.Game\\OpenRA.Game.csproj"
+@@ -2,18 +2,16 @@
+   <PropertyGroup>
+     <RootNamespace>OpenRA</RootNamespace>
+   </PropertyGroup>
+-  <ItemGroup Condition="'$(MSBuildRuntimeType)'!='Mono'">
+-    <PackageReference Include="Microsoft.Extensions.DependencyModel" Version="6.0.2" />
+-    <PackageReference Include="System.Runtime.Loader" Version="4.3.0" />
+-  </ItemGroup>
+-  <ItemGroup Condition="'$(MSBuildRuntimeType)'=='Mono'">
+-    <PackageReference Include="System.Collections.Immutable" Version="6.0.0" />
++  <!-- BEGIN ReCnC PERF-046 (.NET 10: drop Mono conditionals; drop packages now in-box;
++       bump DependencyModel to 10.x matching TFM) -->
++  <ItemGroup>
++    <PackageReference Include="Microsoft.Extensions.DependencyModel" Version="10.0.0" />
+   </ItemGroup>
+   <ItemGroup>
+     <PackageReference Include="Linguini.Bundle" Version="0.8.1" />
+     <PackageReference Include="OpenRA-Eluant" Version="1.0.22" />
+     <PackageReference Include="Mono.NAT" Version="3.0.4" />
+     <PackageReference Include="SharpZipLib" Version="1.4.2" />
+-    <PackageReference Include="System.Threading.Channels" Version="6.0.0" />
+   </ItemGroup>
++  <!-- END ReCnC PERF-046 -->
+ </Project>

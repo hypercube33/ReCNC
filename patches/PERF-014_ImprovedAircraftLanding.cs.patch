@@ -1,0 +1,168 @@
+diff --git "a/patches\\PERF-014-backup\\OpenRA.Mods.Common\\Traits\\Air\\ImprovedAircraftLanding.cs" "b/OpenRA-source\\OpenRA.Mods.Common\\Traits\\Air\\ImprovedAircraftLanding.cs"
+index 64082f6..234354e 100644
+--- "a/patches\\PERF-014-backup\\OpenRA.Mods.Common\\Traits\\Air\\ImprovedAircraftLanding.cs"
++++ "b/OpenRA-source\\OpenRA.Mods.Common\\Traits\\Air\\ImprovedAircraftLanding.cs"
+@@ -45,7 +45,13 @@ namespace OpenRA.Mods.Common.Traits
+ 		/// <summary>
+ 		/// Landing queue for each pad. Aircraft queue up and land in order.
+ 		/// </summary>
+-		readonly Dictionary<Actor, Queue<LandingRequest>> landingQueues = new();
++		// BEGIN ReCnC PERF-014
++		// Use List<LandingRequest> kept in priority-desc / arrival-asc order via
++		// insertion-sort. Replaces Queue<T> + ToList().OrderBy().ThenBy().ToList()
++		// re-sort on every reserve/release (MaxQueuePerPad is only 3 but these
++		// run on every helipad contention).
++		readonly Dictionary<Actor, List<LandingRequest>> landingQueues = new();
++		// END ReCnC PERF-014
+ 
+ 		/// <summary>
+ 		/// Estimated time when each pad will be free.
+@@ -90,7 +96,9 @@ namespace OpenRA.Mods.Common.Traits
+ 
+ 			if (landingQueues.TryGetValue(landingActor, out var queue) && queue.Count > 0)
+ 			{
+-				var next = queue.Peek();
++				// BEGIN ReCnC PERF-014
++				var next = queue[0];
++				// END ReCnC PERF-014
+ 				return next.Aircraft == aircraft;
+ 			}
+ 
+@@ -163,8 +171,16 @@ namespace OpenRA.Mods.Common.Traits
+ 			if (padOccupants.TryGetValue(pad, out var occupant) && occupant == aircraft)
+ 				return 0;
+ 
+-			if (queue != null && queue.Any(r => r.Aircraft == aircraft))
+-				return distanceScore;
++			// BEGIN ReCnC PERF-014
++			if (queue != null)
++			{
++				for (var i = 0; i < queue.Count; i++)
++				{
++					if (queue[i].Aircraft == aircraft)
++						return distanceScore;
++				}
++			}
++			// END ReCnC PERF-014
+ 
+ 			return distanceScore + queueScore + waitScore - (priority * 50);
+ 		}
+@@ -178,38 +194,48 @@ namespace OpenRA.Mods.Common.Traits
+ 			var isDamaged = aircraft.TraitOrDefault<IHealth>()?.DamageState >= DamageState.Medium;
+ 			var priority = isDamaged ? 2 : 1;
+ 
++			// BEGIN ReCnC PERF-014
+ 			if (!landingQueues.TryGetValue(landingActor, out var queue))
+ 			{
+-				queue = new Queue<LandingRequest>();
++				queue = new List<LandingRequest>(MaxQueuePerPad);
+ 				landingQueues[landingActor] = queue;
+ 			}
+ 
+-			if (!queue.Any(r => r.Aircraft == aircraft))
++			var alreadyQueued = false;
++			for (var i = 0; i < queue.Count; i++)
+ 			{
+-				if (queue.Count < MaxQueuePerPad)
++				if (queue[i].Aircraft == aircraft)
+ 				{
+-					var request = new LandingRequest
+-					{
+-						Aircraft = aircraft,
+-						RequestTick = world.WorldTick,
+-						Priority = priority
+-					};
++					alreadyQueued = true;
++					break;
++				}
++			}
+ 
+-					if (priority > 1 && queue.Count > 0)
+-					{
+-						var items = queue.ToList();
+-						items.Add(request);
+-						items = items.OrderByDescending(r => r.Priority).ThenBy(r => r.RequestTick).ToList();
+-						queue.Clear();
+-						foreach (var item in items)
+-							queue.Enqueue(item);
+-					}
+-					else
++			if (!alreadyQueued && queue.Count < MaxQueuePerPad)
++			{
++				var request = new LandingRequest
++				{
++					Aircraft = aircraft,
++					RequestTick = world.WorldTick,
++					Priority = priority
++				};
++
++				// Insertion-sorted: priority desc, then arrival asc.
++				var insertAt = queue.Count;
++				for (var i = 0; i < queue.Count; i++)
++				{
++					var cur = queue[i];
++					if (request.Priority > cur.Priority
++						|| (request.Priority == cur.Priority && request.RequestTick < cur.RequestTick))
+ 					{
+-						queue.Enqueue(request);
++						insertAt = i;
++						break;
+ 					}
+ 				}
++
++				queue.Insert(insertAt, request);
+ 			}
++			// END ReCnC PERF-014
+ 
+ 			return new DisposableAction(
+ 				() => ReleaseLandingZoneInternal(aircraft, landingActor),
+@@ -224,13 +250,10 @@ namespace OpenRA.Mods.Common.Traits
+ 				padFreeAtTick[landingActor] = world.WorldTick;
+ 			}
+ 
++			// BEGIN ReCnC PERF-014
+ 			if (landingQueues.TryGetValue(landingActor, out var queue))
+-			{
+-				var items = queue.Where(r => r.Aircraft != aircraft).ToList();
+-				queue.Clear();
+-				foreach (var item in items)
+-					queue.Enqueue(item);
+-			}
++				queue.RemoveAll(r => r.Aircraft == aircraft);
++			// END ReCnC PERF-014
+ 		}
+ 
+ 		/// <inheritdoc/>
+@@ -257,18 +280,30 @@ namespace OpenRA.Mods.Common.Traits
+ 			if (padOccupants.TryGetValue(landingActor, out var occupant) && occupant == aircraft)
+ 				return true;
+ 
++			// BEGIN ReCnC PERF-014
+ 			if (landingQueues.TryGetValue(landingActor, out var queue))
+ 			{
+-				if (queue.Count >= MaxQueuePerPad && !queue.Any(r => r.Aircraft == aircraft))
++				var containsAircraft = false;
++				for (var i = 0; i < queue.Count; i++)
++				{
++					if (queue[i].Aircraft == aircraft)
++					{
++						containsAircraft = true;
++						break;
++					}
++				}
++
++				if (queue.Count >= MaxQueuePerPad && !containsAircraft)
+ 					return false;
+ 
+ 				if (queue.Count > 0)
+ 				{
+-					var next = queue.Peek();
++					var next = queue[0];
+ 					if (next.Aircraft == aircraft)
+ 						return !IsLandingZoneReserved(landingActor) || padOccupants.GetValueOrDefault(landingActor) == aircraft;
+ 				}
+ 			}
++			// END ReCnC PERF-014
+ 
+ 			return true;
+ 		}

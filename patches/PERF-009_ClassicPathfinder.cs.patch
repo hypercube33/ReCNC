@@ -1,0 +1,29 @@
+diff --git "a/patches\\PERF-009-backup\\OpenRA.Mods.Common\\Pathfinder\\ClassicPathfinder.cs" "b/OpenRA-source\\OpenRA.Mods.Common\\Pathfinder\\ClassicPathfinder.cs"
+index ac32eda..a37d26f 100644
+--- "a/patches\\PERF-009-backup\\OpenRA.Mods.Common\\Pathfinder\\ClassicPathfinder.cs"
++++ "b/OpenRA-source\\OpenRA.Mods.Common\\Pathfinder\\ClassicPathfinder.cs"
+@@ -226,13 +226,21 @@ namespace OpenRA.Mods.Common.Pathfinder
+ 
+ 				path.Reverse();
+ 
+-				// Return a copy since we're returning the path to the pool
+-				var result = new List<CPos>(path);
++				// BEGIN ReCnC PERF-009
++				// Transfer ownership of the pooled list to the caller instead of
++				// allocating + copying a fresh List<CPos>. Setting path = null
++				// prevents the finally block from recycling it.
++				var result = path;
++				path = null;
+ 				return result;
++				// END ReCnC PERF-009
+ 			}
+ 			finally
+ 			{
+-				ReturnPath(path);
++				// BEGIN ReCnC PERF-009
++				if (path != null)
++					ReturnPath(path);
++				// END ReCnC PERF-009
+ 				ReturnVisited(visited);
+ 			}
+ 		}

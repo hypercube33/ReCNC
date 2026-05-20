@@ -1,0 +1,27 @@
+diff --git "a/patches\\PERF-055-backup\\OpenRA.Game\\FieldLoader.cs" "b/OpenRA-source\\OpenRA.Game\\FieldLoader.cs"
+index 996456c..0609e00 100644
+--- "a/patches\\PERF-055-backup\\OpenRA.Game\\FieldLoader.cs"
++++ "b/OpenRA-source\\OpenRA.Game\\FieldLoader.cs"
+@@ -47,12 +47,22 @@ namespace OpenRA
+ 				Missing = missing;
+ 			}
+ 
++			// BEGIN ReCnC PERF-055
++			// On net10 the legacy binary-serialization GetObjectData override emits
++			// SYSLIB0051 (API obsolete) and CS0672 (overriding an obsolete member).
++			// Keep the override so binary-formatted exceptions still round-trip, but
++			// locally suppress the obsolete-member warnings.
++#pragma warning disable SYSLIB0051
++#pragma warning disable CS0672
+ 			public override void GetObjectData(SerializationInfo info, StreamingContext context)
+ 			{
+ 				base.GetObjectData(info, context);
+ 				info.AddValue("Missing", Missing);
+ 				info.AddValue("Header", Header);
+ 			}
++#pragma warning restore CS0672
++#pragma warning restore SYSLIB0051
++			// END ReCnC PERF-055
+ 		}
+ 
+ 		public static Func<string, Type, string, object> InvalidValueAction = (s, t, f) =>

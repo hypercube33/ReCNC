@@ -1,0 +1,56 @@
+﻿diff --git "a/patches\\PERF-024-backup\\OpenRA.Mods.Common\\Traits\\Mobile.cs" "b/OpenRA-source\\OpenRA.Mods.Common\\Traits\\Mobile.cs"
+index d43ef4a..2ca3155 100644
+--- "a/patches\\PERF-024-backup\\OpenRA.Mods.Common\\Traits\\Mobile.cs"
++++ "b/OpenRA-source\\OpenRA.Mods.Common\\Traits\\Mobile.cs"
+@@ -173,7 +173,17 @@ namespace OpenRA.Mods.Common.Traits
+ 		IFacing, IDeathActorInitModifier, INotifyAddedToWorld, INotifyRemovedFromWorld, INotifyBlockingMove, IActorPreviewInitModifier, INotifyBecomingIdle
+ 	{
+ 		readonly Actor self;
+-		readonly Lazy<IEnumerable<int>> speedModifiers;
++
++		// BEGIN ReCnC PERF-024
++		// Cache the ISpeedModifier trait array directly (Lazy-deferred to preserve
++		// the original post-Created initialization ordering). The original field
++		// stored a Lazy<IEnumerable<int>> built from a Select closure, which
++		// re-allocated Select + Append iterators on every MovementSpeedForCell
++		// call (per-cell pathfinding + per-cell movement => thousands of calls
++		// per tick). We still re-query GetSpeedModifier() on each call so rank /
++		// upgrade modifiers remain dynamic.
++		readonly Lazy<ISpeedModifier[]> speedModifierTraits;
++		// END ReCnC PERF-024
+ 
+ 		readonly bool returnToCellOnCreation;
+ 		readonly bool returnToCellOnCreationRecalculateSubCell = true;
+@@ -270,7 +280,9 @@ namespace OpenRA.Mods.Common.Traits
+ 		{
+ 			self = init.Self;
+ 
+-			speedModifiers = Exts.Lazy(() => self.TraitsImplementing<ISpeedModifier>().ToArray().Select(x => x.GetSpeedModifier()));
++			// BEGIN ReCnC PERF-024
++			speedModifierTraits = Exts.Lazy(() => self.TraitsImplementing<ISpeedModifier>().ToArray());
++			// END ReCnC PERF-024
+ 
+ 			ToSubCell = FromSubCell = info.LocomotorInfo.SharesCell ? init.World.Map.Grid.DefaultSubCell : SubCell.FullCell;
+ 
+@@ -747,9 +759,19 @@ namespace OpenRA.Mods.Common.Traits
+ 		public int MovementSpeedForCell(CPos cell)
+ 		{
+ 			var terrainSpeed = Locomotor.MovementSpeedForCell(cell);
+-			var modifiers = speedModifiers.Value.Append(terrainSpeed);
+ 
+-			return Util.ApplyPercentageModifiers(Info.Speed, modifiers);
++			// BEGIN ReCnC PERF-024
++			// Inline the decimal math from Util.ApplyPercentageModifiers to avoid
++			// Select/Append iterator allocations. Arithmetic order and rounding
++			// are bit-identical to the previous call:
++			//   Util.ApplyPercentageModifiers(Info.Speed, speedModifiers.Value.Append(terrainSpeed))
++			var traits = speedModifierTraits.Value;
++			var a = (decimal)Info.Speed;
++			for (var i = 0; i < traits.Length; i++)
++				a *= traits[i].GetSpeedModifier() / 100m;
++			a *= terrainSpeed / 100m;
++			return (int)a;
++			// END ReCnC PERF-024
+ 		}
+ 
+ 		public CPos NearestMoveableCell(CPos target, int minRange, int maxRange)

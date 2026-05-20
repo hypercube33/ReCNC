@@ -1,0 +1,28 @@
+diff --git "a/patches\\PERF-055-backup\\OpenRA.Mods.Common\\Scripting\\Global\\ActorGlobal.cs" "b/OpenRA-source\\OpenRA.Mods.Common\\Scripting\\Global\\ActorGlobal.cs"
+index 3b2abcc..0bd1603 100644
+--- "a/patches\\PERF-055-backup\\OpenRA.Mods.Common\\Scripting\\Global\\ActorGlobal.cs"
++++ "b/OpenRA-source\\OpenRA.Mods.Common\\Scripting\\Global\\ActorGlobal.cs"
+@@ -13,7 +13,11 @@ using System;
+ using System.Collections.Generic;
+ using System.Linq;
+ using System.Reflection;
+-using System.Runtime.Serialization;
++// BEGIN ReCnC PERF-055
++// Switch from System.Runtime.Serialization.FormatterServices (SYSLIB0050) to
++// RuntimeHelpers.GetUninitializedObject, the supported replacement on net10.
++using System.Runtime.CompilerServices;
++// END ReCnC PERF-055
+ using Eluant;
+ using OpenRA.Mods.Common.Traits;
+ using OpenRA.Primitives;
+@@ -36,7 +40,9 @@ namespace OpenRA.Mods.Common.Scripting
+ 				throw new LuaException($"Unknown initializer type '{initInstance[0]}'");
+ 
+ 			// Construct the ActorInit.
+-			var init = (ActorInit)FormatterServices.GetUninitializedObject(initType);
++			// BEGIN ReCnC PERF-055
++			var init = (ActorInit)RuntimeHelpers.GetUninitializedObject(initType);
++			// END ReCnC PERF-055
+ 			if (initInstance.Length > 1)
+ 				initType.GetField(nameof(ActorInit.InstanceName)).SetValue(init, initInstance[1]);
+ 
