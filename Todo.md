@@ -1,6 +1,11 @@
 # ReCnC — Todo
 
-Work from this list first; update statuses as you go.
+GitHub Issues are now the live backlog for open work:
+
+- `docs/ISSUE_INDEX.md`
+- <https://github.com/hypercube33/ReCNC/issues>
+
+Keep this file for research notes, historical context, and deeper investigation details that do not fit well in issue titles and summaries.
 
 ## Backlog
 

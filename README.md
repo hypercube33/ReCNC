@@ -35,6 +35,7 @@ The repo is organized as a source workspace, not as a minimal distributable pack
 If you are opening this repo cold, read these in order:
 
 - `README.md`
+- `docs/ISSUE_INDEX.md`
 - `docs/PROVENANCE.md`
 - `Todo.md`
 - `OpenBugs.md`
